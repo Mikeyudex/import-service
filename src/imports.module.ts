@@ -14,9 +14,12 @@ import { SettingsSchema, Settings } from '../../apps/@shared/schemas/settings.sc
 import { ImportsQueueProcessor } from './queues/imports-queue.processor';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ImportsController } from './imports.controller';
+import { RedisConfig } from './common/config/redis.config';
 
 @Module({
     imports: [
+        MongooseModule.forRoot(process.env.MONGODB_URI || "mongodb+srv://miguel92:xBfMZHWH1NplSOfn@grid-erp.7enjr.mongodb.net/grid-erp-db-sandbox?retryWrites=true&w=majority"), // conexión con Mongoose
         MongooseModule.forFeature([{ name: TypeProduct.name, schema: TypeProductSchema }]),
         MongooseModule.forFeature([{ name: ProviderErp.name, schema: ProviderErpSchema }]),
         MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
@@ -38,11 +41,15 @@ import { MongooseModule } from '@nestjs/mongoose';
                 },
             },
         ]),
+        BullModule.forRootAsync({
+            useClass: RedisConfig,
+        }),
         BullModule.registerQueue({
             name: QueuesEnum.Imports,
         }),
     ],
+    controllers: [ImportsController],
     providers: [ImportsService, ImportsQueueProcessor],
     exports: [ImportsService],
 })
-export class ImportsProductsModule { }
+export class ImportsModule { }

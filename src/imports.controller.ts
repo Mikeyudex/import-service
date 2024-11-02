@@ -8,16 +8,17 @@ import { AppService } from './app.service';
 import { ImportsService } from './imports.service';
 
 @Controller('import')
-export class AppController {
+export class ImportsController {
   constructor(
     private readonly importService: ImportsService,
-    private readonly appService: AppService
   ) { }
 
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  @Get('/health')
+  healthCheck() {
+    return { success: true, message: 'OK' };
   }
+  
+
 
   @Post('/import-products-xlsx/:companyId')
   @UseInterceptors(
