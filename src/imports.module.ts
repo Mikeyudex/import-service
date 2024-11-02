@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ImportsService } from './imports.service';
 import { BullModule } from '@nestjs/bull';
+import { ConfigModule } from '@nestjs/config';
+import * as Joi from 'joi';
+import { ConfigType } from '@nestjs/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { MongooseModule } from '@nestjs/mongoose';
+
 import { QueuesEnum } from '../../apps/@shared/enums/queues.enum';
 import { TypeProductSchema, TypeProduct } from '../../apps/@shared/schemas/typeProduct.schema';
 import { ProviderErpSchema, ProviderErp } from '../../apps/@shared/schemas/provider.schema';
@@ -12,14 +18,22 @@ import { WarehouseSchema, Warehouse } from '../../apps/@shared/schemas/warehouse
 import { UnitOfMeasureSchema, UnitOfMeasure } from '../../apps/@shared/schemas/unit-of-measure.schema';
 import { SettingsSchema, Settings } from '../../apps/@shared/schemas/settings.schema';
 import { ImportsQueueProcessor } from './queues/imports-queue.processor';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { MongooseModule } from '@nestjs/mongoose';
+
 import { ImportsController } from './imports.controller';
 import { RedisConfig } from './common/config/redis.config';
+import config from './config';
+import { BullBoardService } from './common/config/bull-board.config';
 
 @Module({
     imports: [
-        MongooseModule.forRoot(process.env.MONGODB_URI || "mongodb+srv://miguel92:xBfMZHWH1NplSOfn@grid-erp.7enjr.mongodb.net/grid-erp-db-sandbox?retryWrites=true&w=majority"), // conexión con Mongoose
+        MongooseModule.forRootAsync({
+            imports: [ConfigModule], // Importa ConfigModule para que ConfigService esté disponible
+            useFactory: async (configService: ConfigType<typeof config>) => ({
+                uri: configService.database.uri, // Obtiene la URI de las variables de entorno
+            }),
+            inject: [config.KEY], // Inyecta config.KEY para usarlo en useFactory
+        }),
+        /*  MongooseModule.forRoot(process.env.MONGODB_URI || "mongodb+srv://miguel92:xBfMZHWH1NplSOfn@grid-erp.7enjr.mongodb.net/grid-erp-db-sandbox?retryWrites=true&w=majority"), */ // conexión con Mongoose
         MongooseModule.forFeature([{ name: TypeProduct.name, schema: TypeProductSchema }]),
         MongooseModule.forFeature([{ name: ProviderErp.name, schema: ProviderErpSchema }]),
         MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
@@ -49,7 +63,7 @@ import { RedisConfig } from './common/config/redis.config';
         }),
     ],
     controllers: [ImportsController],
-    providers: [ImportsService, ImportsQueueProcessor],
+    providers: [ImportsService, ImportsQueueProcessor, BullBoardService],
     exports: [ImportsService],
 })
 export class ImportsModule { }

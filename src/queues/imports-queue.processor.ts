@@ -17,7 +17,7 @@ export class ImportsQueueProcessor {
         this.importsService.importProductsFromXlsx(data?.file, data?.companyId, job).
             then((result) => {
                 job.log('Productos importados');
-                //job.progress(100);
+                job.progress(100);
                 job.isCompleted();
                 return result;
             }).catch((error) => {

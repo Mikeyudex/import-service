@@ -20,6 +20,7 @@ import { Product, ProductDocument } from '../../apps/@shared/schemas/product.sch
 import { Settings, SettingsDocument } from '../../apps/@shared/schemas/settings.schema';
 import { Inject, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { v4 } from 'uuid';
 
 const utilFiles = new UtilFiles();
 
@@ -71,6 +72,7 @@ export class ImportsService {
                 try {
                     const product = await this.homologateProduct(dataExcel[i], companyId);
                     product.companyId = companyId;
+                    product.uuid = v4();
                     products.push(product);
                     await this.productModel.create(product);
                     progress = (i / dataExcel.length) * 100;
