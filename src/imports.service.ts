@@ -3,13 +3,17 @@ import { Job, Queue } from 'bull';
 import * as Excel from 'exceljs';
 import * as fs from 'fs';
 import { Model } from 'mongoose';
+import { Inject, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { v4 } from 'uuid';
+import { randomInt } from 'crypto';
+import { InjectModel } from '@nestjs/mongoose';
 
 import { QueuesEnum, JobsQueuesEnum } from '../../apps/@shared/enums/queues.enum';
-import { ExcelPayloadDto } from '../../apps/@shared/dtos/import/import.dto';
+import { ExcelPayloadDto, ExcelPayloadDtoTapete } from '../../apps/@shared/dtos/import/import.dto';
 import { CreateProductDto } from '../../apps/@shared/dtos/product/create-product.dto';
 import { UtilFiles } from '../../apps/@shared/utils/os/fs';
 import { TypeProduct, TypeProductDocument } from '../../apps/@shared/schemas/typeProduct.schema';
-import { InjectModel } from '@nestjs/mongoose';
 import { ProductCategoryDocument, ProductCategory } from '../../apps/@shared/schemas/category.schema';
 import { ProductSubCategoryDocument, ProductSubCategory } from '../../apps/@shared/schemas/subcategory.schema';
 import { TaxDocument, Tax } from '../../apps/@shared/schemas/taxes.schema';
@@ -18,12 +22,9 @@ import { UnitOfMeasureDocument, UnitOfMeasure } from '../../apps/@shared/schemas
 import { ProviderErp, ProviderErpDocument } from '../../apps/@shared/schemas/provider.schema';
 import { Product, ProductDocument } from '../../apps/@shared/schemas/product.schema';
 import { Settings, SettingsDocument } from '../../apps/@shared/schemas/settings.schema';
-import { Inject, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { v4 } from 'uuid';
+import { TypeOfPiece, TypeOfPieceDocument } from '../../apps/@shared/schemas/type-of-piece.schema';
 
 const utilFiles = new UtilFiles();
-
 export class ImportsService {
     logger = new Logger(ImportsService.name);
 
@@ -39,6 +40,7 @@ export class ImportsService {
         @InjectModel(Tax.name) private readonly taxModel: Model<TaxDocument>,
         @InjectModel(UnitOfMeasure.name) private readonly unitOfMeasureModel: Model<UnitOfMeasureDocument>,
         @InjectModel(Settings.name) private readonly settingsModel: Model<SettingsDocument>,
+        @InjectModel(TypeOfPiece.name) private readonly typeOfPieceModel: Model<TypeOfPieceDocument>,
     ) { }
 
     async importProductsFromXlsxQueue(file: any, companyId: string) {
@@ -54,12 +56,53 @@ export class ImportsService {
         }
     }
 
+    async importFromHttp(file: any, companyId: string) {
+        try {
+            let filePath = file?.path;
+            const fileBuffer: any = fs.readFileSync(filePath);
+
+            const workbook = new Excel.Workbook();
+            await workbook.xlsx.load(fileBuffer as Excel.Buffer);
+            const sheet = workbook.getWorksheet('Productos');
+            const header = sheet.getRow(1).values as string[];
+            const products = [];
+            let progress = 0;
+            let dataExcel = await this.parsedExcelTapetes(sheet, header);
+            let errors: { producto: string, codigoexterno: string, error: string }[] = [];
+            let success = 0;
+            console.log(header);
+            console.log(dataExcel);
+
+            for (let i = 0; i < dataExcel.length; i++) {
+                try {
+                    const product = await this.homologateProductTapete(dataExcel[i], companyId);
+                    product.companyId = companyId;
+                    product.uuid = v4();
+                    products.push(product);
+                    await this.productModel.create(product);
+                    progress = (i / dataExcel.length) * 100;
+                    this.logger.log(`Importación de productos finalizada con exito. Productos creados: ${success}, Errores: ${errors.length}`);
+                    utilFiles.removeFile(filePath).then(result => console.log(result)).catch(error => console.log(error))
+                } catch (error) {
+                    errors.push({ producto: dataExcel[i].linea, codigoexterno: dataExcel[i].cod_externo, error: `Error: ${error.message}` });
+                    this.logger.error(error);
+                }
+            }
+
+            //Borrar archivo
+            utilFiles.removeFile(filePath).then(result => console.log(result)).catch(error => console.log(error))
+
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
     async importProductsFromXlsx(file: any, companyId: string, job: Job) {
         try {
             let filePath = file?.path;
-            let fileBuffer = fs.readFileSync(filePath);
+            let fileBuffer: any = fs.readFileSync(filePath);
             const workbook = new Excel.Workbook();
-            await workbook.xlsx.load(fileBuffer);
+            await workbook.xlsx.load(fileBuffer as Excel.Buffer);
             const sheet = workbook.getWorksheet('Productos');
             const header = sheet.getRow(1).values as string[];
             const products = [];
@@ -133,6 +176,41 @@ export class ImportsService {
         });
     }
 
+    async parsedExcelTapetes(sheet: Excel.Worksheet, header: string[]): Promise<ExcelPayloadDtoTapete[]> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const dataExcel: ExcelPayloadDtoTapete[] = [];
+                sheet.eachRow((row, rowNum) => {
+                    if (rowNum > 1) {
+                        const rowData = row.values;
+                        const obj: ExcelPayloadDtoTapete = new ExcelPayloadDtoTapete();
+                        // Mapear datos con encabezado
+                        header.forEach((key: any, index: number) => {
+                            let _key = key.trim();
+                            _key = _key.toLowerCase();
+                            obj[_key] = rowData[index];
+                        });
+                        obj.tipo = obj.tipo;
+                        obj.marca = obj.marca;
+                        obj.linea = obj.linea;
+                        obj.piezas = obj.piezas;
+                        obj.tipo_tapete = obj.tipo_tapete;
+                        obj.material = obj.material;
+                        obj.cantidad = obj.cantidad;
+                        obj.precio_mayorista = obj.precio_mayorista;
+                        obj.precio_base = obj.precio_base;
+                        obj.valor_total = obj.valor_total;
+                        obj.observaciones_cliente = obj.observaciones_cliente;
+                        dataExcel.push(obj);
+                    }
+                });
+                resolve(dataExcel);
+            } catch (error) {
+                reject(error)
+            }
+        });
+    }
+
 
     async homologateProduct(payloadExcel: ExcelPayloadDto, companyId: string): Promise<CreateProductDto> {
         return new Promise(async (resolve, reject) => {
@@ -182,6 +260,44 @@ export class ImportsService {
                         hasBarcode: product.generacodigodebarra,
                         images: product.imagenes.text.split(","),
                     },
+
+                };
+                resolve(createProductDto);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    async homologateProductTapete(payloadExcel: ExcelPayloadDtoTapete, companyId: string): Promise<CreateProductDto> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const product: ExcelPayloadDtoTapete = payloadExcel;
+
+                let typeProducts = await this.typeProductModel.find().exec();
+                let lastSku = await this.getLastSkuByCompany(companyId);
+                let categories = await this.productCategoryModel.find().exec();
+                let idCategory = await this.getCategoryId(product.marca, categories);
+                let typeOfPieces = await this.typeOfPieceModel.find().exec();
+                let typeOfPiecesPayloadExcel = [product.pieza_1, product.pieza_2, product.pieza_3, product.pieza_4, product.pieza_5];
+                let typeOfPiecesIds = this.getTypeOfPiecesIds(typeOfPiecesPayloadExcel, typeOfPieces);
+
+                let createProductDto: CreateProductDto = {
+                    name: product.linea,
+                    description: product.descripcion,
+                    id_type_product: this.getTypeProductId(product.tipo, typeProducts),
+                    providerId: "4d011943-8be5-4316-bef8-73e300c876a3",
+                    warehouseId: "67ac30a3-861c-4cc4-ac39-a23233440c1d",
+                    externalId: product.cod_externo,
+                    sku: lastSku,
+                    unitOfMeasureId: "",
+                    taxId: "",
+                    id_category: idCategory,
+                    id_sub_category: "680aaf320d033722d44d4bff",
+                    quantity: Number(product.cantidad),
+                    costPrice: Number(product.precio_mayorista),
+                    salePrice: Number(product.precio_base),
+                    typeOfPieces: typeOfPiecesIds,
                 };
                 resolve(createProductDto);
             } catch (error) {
@@ -259,9 +375,59 @@ export class ImportsService {
         return lastProduct ? String(Number(lastProduct.sku) + 1) : null;
     }
 
+    getTypeProductId(typeProductExcel: string, typeProducts: TypeProductDocument[]): string {
+        switch (typeProductExcel) {
+            case 'LIVIANOS':
+                return typeProducts.find(typeProduct => typeProduct.name === 'Livianos')._id.toString();
+            case 'PESADOS':
+                return typeProducts.find(typeProduct => typeProduct.name === 'Pesados')._id.toString();
+            default:
+                return typeProducts.find(typeProduct => typeProduct.name === 'Livianos')._id.toString();
+        }
+    }
+
+    async getCategoryId(categoryExcel: string, categories: ProductCategoryDocument[]): Promise<string> {
+        try {
+            let category = categories.find(category => category.name.toLowerCase() === categoryExcel.toLowerCase());
+            if (category) {
+                return category._id.toString();
+            } else {
+                let newCategory = {
+                    name: categoryExcel,
+                    description: categoryExcel,
+                    shortCode: randomInt(1000, 9999).toString(),
+                    uuid: v4()
+                };
+                let category = new this.productCategoryModel(newCategory);
+                let savedCategory = await category.save();
+                if (savedCategory) {
+                    return savedCategory._id.toString();
+                } else {
+                    return '';
+                }
+            }
+        } catch (error) {
+            return '';
+        }
+    }
+
     hasValueObject(values: any[], keyToFind: string): boolean {
         let value = values.find(item => item.hasOwnProperty(keyToFind));
         return value ? true : false;
     };
+
+    getTypeOfPiecesIds(piecesPayloadExcel: string[], typeOfPieces: TypeOfPieceDocument[]): string[] {
+
+        let typeOfPiecesIds = [];
+        for (let index = 0; index < piecesPayloadExcel.length; index++) {
+            const piece = piecesPayloadExcel[index];
+            let typeOfPiece = typeOfPieces.find(typeOfPiece => typeOfPiece.name.toLowerCase() === piece.toLowerCase());
+            if (typeOfPiece) {
+                typeOfPiecesIds.push(typeOfPiece._id.toString());
+            }
+        }
+        return typeOfPiecesIds;
+
+    }
 
 }

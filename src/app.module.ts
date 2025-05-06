@@ -20,7 +20,8 @@ import { BullBoardService } from './common/config/bull-board.config';
         MONGODB_URI: Joi.string().required(),
       })
     }),
-    ImportsModule],
+    ImportsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

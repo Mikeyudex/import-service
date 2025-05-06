@@ -17,8 +17,6 @@ export class ImportsController {
   healthCheck() {
     return { success: true, message: 'OK' };
   }
-  
-
 
   @Post('/import-products-xlsx/:companyId')
   @UseInterceptors(
@@ -44,6 +42,7 @@ export class ImportsController {
   )
   async importProducts(@UploadedFile() file: Express.Multer.File, @Res() res: Response, @Param('companyId') companyId: string) {
     res.status(200).json({ success: true, message: 'Solicitud recibida, se notificará cuando se haya completado la importación' });
-    this.importService.importProductsFromXlsxQueue(file, companyId);
+    //this.importService.importProductsFromXlsxQueue(file, companyId);
+    this.importService.importFromHttp(file, companyId);
   }
 }
