@@ -17,6 +17,8 @@ import { TaxSchema, Tax } from '../../apps/@shared/schemas/taxes.schema';
 import { WarehouseSchema, Warehouse } from '../../apps/@shared/schemas/warehouse.schema';
 import { UnitOfMeasureSchema, UnitOfMeasure } from '../../apps/@shared/schemas/unit-of-measure.schema';
 import { SettingsSchema, Settings } from '../../apps/@shared/schemas/settings.schema';
+import { TypeOfPiece, TypeOfPieceSchema } from '../../apps/@shared/schemas/type-of-piece.schema';
+import { Stock, StockSchema } from '../../apps/@shared/schemas/stock.schema';
 import { ImportsQueueProcessor } from './queues/imports-queue.processor';
 
 import { ImportsController } from './imports.controller';
@@ -43,6 +45,8 @@ import { BullBoardService } from './common/config/bull-board.config';
         MongooseModule.forFeature([{ name: Warehouse.name, schema: WarehouseSchema }]),
         MongooseModule.forFeature([{ name: UnitOfMeasure.name, schema: UnitOfMeasureSchema }]),
         MongooseModule.forFeature([{ name: Settings.name, schema: SettingsSchema }]),
+        MongooseModule.forFeature([{ name: TypeOfPiece.name, schema: TypeOfPieceSchema }]),
+        MongooseModule.forFeature([{ name: Stock.name, schema: StockSchema }]),
         ClientsModule.register([
             {
                 name: 'WEBSOCKET_SERVICE',

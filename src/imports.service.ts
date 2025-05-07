@@ -11,6 +11,7 @@ import { InjectModel } from '@nestjs/mongoose';
 
 import { QueuesEnum, JobsQueuesEnum } from '../../apps/@shared/enums/queues.enum';
 import { ExcelPayloadDto, ExcelPayloadDtoTapete } from '../../apps/@shared/dtos/import/import.dto';
+import { CreateStockDto } from '../../apps/@shared/dtos/stock/stock.dto';
 import { CreateProductDto } from '../../apps/@shared/dtos/product/create-product.dto';
 import { UtilFiles } from '../../apps/@shared/utils/os/fs';
 import { TypeProduct, TypeProductDocument } from '../../apps/@shared/schemas/typeProduct.schema';
@@ -23,6 +24,7 @@ import { ProviderErp, ProviderErpDocument } from '../../apps/@shared/schemas/pro
 import { Product, ProductDocument } from '../../apps/@shared/schemas/product.schema';
 import { Settings, SettingsDocument } from '../../apps/@shared/schemas/settings.schema';
 import { TypeOfPiece, TypeOfPieceDocument } from '../../apps/@shared/schemas/type-of-piece.schema';
+import { Stock, StockDocument } from '../../apps/@shared/schemas/stock.schema';
 
 const utilFiles = new UtilFiles();
 export class ImportsService {
@@ -41,6 +43,7 @@ export class ImportsService {
         @InjectModel(UnitOfMeasure.name) private readonly unitOfMeasureModel: Model<UnitOfMeasureDocument>,
         @InjectModel(Settings.name) private readonly settingsModel: Model<SettingsDocument>,
         @InjectModel(TypeOfPiece.name) private readonly typeOfPieceModel: Model<TypeOfPieceDocument>,
+        @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
     ) { }
 
     async importProductsFromXlsxQueue(file: any, companyId: string) {
@@ -70,8 +73,6 @@ export class ImportsService {
             let dataExcel = await this.parsedExcelTapetes(sheet, header);
             let errors: { producto: string, codigoexterno: string, error: string }[] = [];
             let success = 0;
-            console.log(header);
-            console.log(dataExcel);
 
             for (let i = 0; i < dataExcel.length; i++) {
                 try {
@@ -79,17 +80,24 @@ export class ImportsService {
                     product.companyId = companyId;
                     product.uuid = v4();
                     products.push(product);
-                    await this.productModel.create(product);
+                    let newProduct = await this.productModel.create(product);
+                    //Creando el stock para el produto recién creado
+                    const createStockDto: CreateStockDto = {
+                        productId: newProduct._id.toString(),
+                        quantity: product.quantity,
+                        warehouseId: product.warehouseId,
+                    }
+                    await this.stockModel.create(createStockDto);
+                    /* await this.handleCreateMovement(createProductDto, product._id.toString()) */
                     progress = (i / dataExcel.length) * 100;
-                    this.logger.log(`Importación de productos finalizada con exito. Productos creados: ${success}, Errores: ${errors.length}`);
-                    utilFiles.removeFile(filePath).then(result => console.log(result)).catch(error => console.log(error))
+                    success++;
                 } catch (error) {
                     errors.push({ producto: dataExcel[i].linea, codigoexterno: dataExcel[i].cod_externo, error: `Error: ${error.message}` });
                     this.logger.error(error);
                 }
             }
 
-            //Borrar archivo
+            this.logger.log(`Importación de productos finalizada con exito. Productos creados: ${success}, Errores: ${errors.length}`);
             utilFiles.removeFile(filePath).then(result => console.log(result)).catch(error => console.log(error))
 
         } catch (error) {
@@ -290,13 +298,13 @@ export class ImportsService {
                     warehouseId: "67ac30a3-861c-4cc4-ac39-a23233440c1d",
                     externalId: product.cod_externo,
                     sku: lastSku,
-                    unitOfMeasureId: "",
-                    taxId: "",
+                    unitOfMeasureId: "66c7ce424e4c3032d6ccc2c9",
+                    taxId: "66cd4e5b66edf5584b16d940",
                     id_category: idCategory,
                     id_sub_category: "680aaf320d033722d44d4bff",
-                    quantity: Number(product.cantidad),
-                    costPrice: Number(product.precio_mayorista),
-                    salePrice: Number(product.precio_base),
+                    quantity: isNaN(Number(product?.cantidad)) ? 1 : Number(product?.cantidad),
+                    costPrice: isNaN(Number(product?.precio_mayorista)) ? 0 : Number(product?.precio_mayorista),
+                    salePrice: isNaN(Number(product?.precio_base)) ? 0 : Number(product?.precio_base),
                     typeOfPieces: typeOfPiecesIds,
                 };
                 resolve(createProductDto);
@@ -417,17 +425,19 @@ export class ImportsService {
     };
 
     getTypeOfPiecesIds(piecesPayloadExcel: string[], typeOfPieces: TypeOfPieceDocument[]): string[] {
-
         let typeOfPiecesIds = [];
         for (let index = 0; index < piecesPayloadExcel.length; index++) {
             const piece = piecesPayloadExcel[index];
-            let typeOfPiece = typeOfPieces.find(typeOfPiece => typeOfPiece.name.toLowerCase() === piece.toLowerCase());
-            if (typeOfPiece) {
-                typeOfPiecesIds.push(typeOfPiece._id.toString());
+            if (piece) {
+                let typeOfPiece = typeOfPieces.find(typeOfPiece => {
+                    return typeOfPiece.name.toLowerCase() === piece.toLowerCase()
+                });
+                if (typeOfPiece) {
+                    typeOfPiecesIds.push(typeOfPiece._id.toString());
+                }
             }
         }
         return typeOfPiecesIds;
-
     }
 
 }
