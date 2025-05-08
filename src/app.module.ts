@@ -8,6 +8,7 @@ import { ImportsModule } from './imports.module';
 import { environments } from './environments';
 import config from './config';
 import { BullBoardService } from './common/config/bull-board.config';
+import { FileUploadHistoryModule } from './file-upload-history/file-upload-history.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { BullBoardService } from './common/config/bull-board.config';
       })
     }),
     ImportsModule,
+    FileUploadHistoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

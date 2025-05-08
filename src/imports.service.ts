@@ -25,6 +25,10 @@ import { Product, ProductDocument } from '../../apps/@shared/schemas/product.sch
 import { Settings, SettingsDocument } from '../../apps/@shared/schemas/settings.schema';
 import { TypeOfPiece, TypeOfPieceDocument } from '../../apps/@shared/schemas/type-of-piece.schema';
 import { Stock, StockDocument } from '../../apps/@shared/schemas/stock.schema';
+import { FileUploadHistoryService } from './file-upload-history/file-upload-history.service';
+import { FileUploadHistoryDto } from './file-upload-history/dto/file-upload-history.dto';
+import { FileUploadOperationTypeEnum, FileUploadStatusEnum } from './file-upload-history/file-upload-history.schema';
+import { getCurrentUTCDate } from './common/utils/getUtcDate';
 
 const utilFiles = new UtilFiles();
 export class ImportsService {
@@ -44,6 +48,7 @@ export class ImportsService {
         @InjectModel(Settings.name) private readonly settingsModel: Model<SettingsDocument>,
         @InjectModel(TypeOfPiece.name) private readonly typeOfPieceModel: Model<TypeOfPieceDocument>,
         @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
+        private readonly fileUploadHistoryService: FileUploadHistoryService
     ) { }
 
     async importProductsFromXlsxQueue(file: any, companyId: string) {
@@ -59,20 +64,33 @@ export class ImportsService {
         }
     }
 
-    async importFromHttp(file: any, companyId: string) {
+    async importFromHttp(file: any, companyId: string, userId: string) {
+        let errors: { producto: string, codigoexterno: string, error: string }[] = [];
+        let success = 0;
+        let progress = 0;
+        let fileUploadDocId = null;
+
         try {
             let filePath = file?.path;
             const fileBuffer: any = fs.readFileSync(filePath);
-
             const workbook = new Excel.Workbook();
             await workbook.xlsx.load(fileBuffer as Excel.Buffer);
             const sheet = workbook.getWorksheet('Productos');
             const header = sheet.getRow(1).values as string[];
             const products = [];
-            let progress = 0;
+
             let dataExcel = await this.parsedExcelTapetes(sheet, header);
-            let errors: { producto: string, codigoexterno: string, error: string }[] = [];
-            let success = 0;
+
+
+            let fileUploadDto = new FileUploadHistoryDto();
+            fileUploadDto.operationType = FileUploadOperationTypeEnum.PRODUCT_IMPORT;
+            fileUploadDto.uploadedBy = userId;
+            fileUploadDto.fileName = file.originalname;
+            fileUploadDto.status = FileUploadStatusEnum.PROCESSING;
+            fileUploadDto.uploadDate = getCurrentUTCDate();
+
+            let fileUploadDoc = await this.fileUploadHistoryService.create(fileUploadDto);
+            fileUploadDocId = fileUploadDoc.id;
 
             for (let i = 0; i < dataExcel.length; i++) {
                 try {
@@ -88,7 +106,6 @@ export class ImportsService {
                         warehouseId: product.warehouseId,
                     }
                     await this.stockModel.create(createStockDto);
-                    /* await this.handleCreateMovement(createProductDto, product._id.toString()) */
                     progress = (i / dataExcel.length) * 100;
                     success++;
                 } catch (error) {
@@ -97,11 +114,25 @@ export class ImportsService {
                 }
             }
 
+            this.fileUploadHistoryService.update(fileUploadDocId, {
+                status: FileUploadStatusEnum.COMPLETED,
+                recordsFailed: errors.length,
+                recordsProcessed: success,
+                completionDate: getCurrentUTCDate()
+            }).then(result => console.log('Update file upload history completed')).catch(error => console.log(error))
+
             this.logger.log(`Importación de productos finalizada con exito. Productos creados: ${success}, Errores: ${errors.length}`);
             utilFiles.removeFile(filePath).then(result => console.log(result)).catch(error => console.log(error))
 
         } catch (error) {
-            console.log(error);
+            this.logger.error(`Error al importar productos de archivo`, error);
+            this.fileUploadHistoryService.update(fileUploadDocId, {
+                status: FileUploadStatusEnum.FAILED,
+                recordsFailed: errors.length,
+                recordsProcessed: success,
+                completionDate: getCurrentUTCDate(),
+                errorMessage: error?.message
+            }).then(result => console.log('Update file upload history completed')).catch(error => console.log(error))
         }
     }
 

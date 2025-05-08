@@ -25,6 +25,7 @@ import { ImportsController } from './imports.controller';
 import { RedisConfig } from './common/config/redis.config';
 import config from './config';
 import { BullBoardService } from './common/config/bull-board.config';
+import { FileUploadHistoryModule } from './file-upload-history/file-upload-history.module';
 
 @Module({
     imports: [
@@ -65,6 +66,7 @@ import { BullBoardService } from './common/config/bull-board.config';
         BullModule.registerQueue({
             name: QueuesEnum.Imports,
         }),
+        FileUploadHistoryModule
     ],
     controllers: [ImportsController],
     providers: [ImportsService, ImportsQueueProcessor, BullBoardService],
