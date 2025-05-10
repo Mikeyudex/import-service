@@ -32,7 +32,7 @@ jobs:
                     source "$NVM_DIR/nvm.sh"
                     nvm use 20.14.0
 
-                    cd /home/ubuntu/import-service
+                    cd /home/ubuntu/grid-erp-backend-prod/import-service
                     echo "Pulling latest changes..."
                     git pull
                     echo "running deploy.sh..."
@@ -62,7 +62,7 @@ jobs:
                     source "$NVM_DIR/nvm.sh"
                     nvm use 20.14.0
 
-                    cd /home/ubuntu/import-service-sandbox
+                    cd /home/ubuntu/grid-erp-backend/import-service
                     echo "Pulling latest changes..."
                     git pull
                     echo "running deploy.dev.sh..."
