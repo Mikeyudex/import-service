@@ -1,0 +1,71 @@
+name: Deploy app Backend GridErp 
+
+on:
+    push:
+        branches:
+            - main
+            - sandbox
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    deploy_prod:
+        if: github.ref == 'refs/heads/main'
+        runs-on: ubuntu-22.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+
+            - name: connect to server and deploy
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.SERVER_HOST }}
+                  username: ${{ secrets.SERVER_USER }}
+                  key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  port: ${{ secrets.SERVER_PORT }}
+                  script: |
+                    set -e #detects errors and stops execution
+
+                    # Cargar entorno de nvm y usar Node.js 20
+                    export NVM_DIR="$HOME/.nvm"
+                    source "$NVM_DIR/nvm.sh"
+                    nvm use 20.14.0
+
+                    cd /home/ubuntu/import-service
+                    echo "Pulling latest changes..."
+                    git pull
+                    echo "running deploy.sh..."
+                    bash deploy.sh
+                    echo "deploy successful!"
+              continue-on-error: false   
+
+    deploy_dev:
+        if: github.ref == 'refs/heads/sandbox'
+        runs-on: ubuntu-22.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+
+            - name: connect to server and deploy
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.SERVER_HOST }}
+                  username: ${{ secrets.SERVER_USER }}
+                  key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  port: ${{ secrets.SERVER_PORT }}
+                  script: |
+                    set -e #detects errors and stops execution
+
+                    # Cargar entorno de nvm y usar Node.js 20
+                    export NVM_DIR="$HOME/.nvm"
+                    source "$NVM_DIR/nvm.sh"
+                    nvm use 20.14.0
+
+                    cd /home/ubuntu/import-service-sandbox
+                    echo "Pulling latest changes..."
+                    git pull
+                    echo "running deploy.dev.sh..."
+                    bash deploy.dev.sh
+                    echo "deploy successful!"
+              continue-on-error: false
