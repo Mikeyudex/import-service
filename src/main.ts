@@ -22,12 +22,12 @@ async function bootstrap() {
         allowedOrigins.push('http://localhost:3001');
         allowedOrigins.push('http://localhost:3002');
       } else if (process.env.NODE_ENV === 'dev') {
-        allowedOrigins.push('https://backoffice-sandbox.galilea.co:4445');
+        allowedOrigins.push('http://149.130.186.128:8080');
       }
       else if (process.env.NODE_ENV === 'prod') {
-        allowedOrigins.push('https://backoffice.galilea.co:4447');
+        allowedOrigins.push('http://149.130.186.128:8080');
       } else {
-        allowedOrigins.push('https://backoffice.galilea.co:4447');
+        allowedOrigins.push('http://149.130.186.128:8080');
       }
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
