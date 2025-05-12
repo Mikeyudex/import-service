@@ -17,11 +17,18 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowedOrigins = [];
+      console.log("NODE_ENV: " + process.env.NODE_ENV);
+      console.log("ENV: " + process.env.ENV);
+      
       if (process.env.NODE_ENV === 'local' || process.env.ENV === 'LOCAL') {
         allowedOrigins.push('http://localhost:3000');
         allowedOrigins.push('http://localhost:3001');
         allowedOrigins.push('http://localhost:3002');
       } else if (process.env.NODE_ENV === 'dev') {
+        allowedOrigins.push('http://localhost:3000');
+        allowedOrigins.push('http://localhost:3001');
+        allowedOrigins.push('http://localhost:3002');
+        
         allowedOrigins.push('http://149.130.186.128:8080');
       }
       else if (process.env.NODE_ENV === 'prod') {

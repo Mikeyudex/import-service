@@ -77,7 +77,6 @@ export class ImportsService {
             await workbook.xlsx.load(fileBuffer as Excel.Buffer);
             const sheet = workbook.getWorksheet('Productos');
             const header = sheet.getRow(1).values as string[];
-            const products = [];
 
             let dataExcel = await this.parsedExcelTapetes(sheet, header);
 
@@ -97,7 +96,13 @@ export class ImportsService {
                     const product = await this.homologateProductTapete(dataExcel[i], companyId);
                     product.companyId = companyId;
                     product.uuid = v4();
-                    products.push(product);
+
+                    if (await this.validateDuplicateProductName(product)) {
+                        success++;
+                        this.logger.log(`Producto ${product.name} ya existe, se omite.`);
+                        continue; // Si el producto ya existe, continuar con el siguiente
+                    }
+
                     let newProduct = await this.productModel.create(product);
                     //Creando el stock para el produto recién creado
                     const createStockDto: CreateStockDto = {
@@ -469,6 +474,11 @@ export class ImportsService {
             }
         }
         return typeOfPiecesIds;
+    }
+
+    async validateDuplicateProductName(product: CreateProductDto): Promise<boolean> {
+        const existingProduct = await this.productModel.findOne({ name: product.name }).exec();
+        return existingProduct ? true : false;
     }
 
 }
