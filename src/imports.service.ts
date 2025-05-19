@@ -327,8 +327,8 @@ export class ImportsService {
                 let typeOfPiecesIds = this.getTypeOfPiecesIds(typeOfPiecesPayloadExcel, typeOfPieces);
 
                 let createProductDto: CreateProductDto = {
-                    name: product.linea,
-                    description: product.descripcion,
+                    name: product.linea.toLocaleUpperCase(),
+                    description: product.descripcion.toLocaleUpperCase(),
                     id_type_product: this.getTypeProductId(product.tipo, typeProducts),
                     providerId: "4d011943-8be5-4316-bef8-73e300c876a3",
                     warehouseId: "67ac30a3-861c-4cc4-ac39-a23233440c1d",
